@@ -1,0 +1,19 @@
+name: totems
+channels:
+  - conda-forge
+  - pytorch
+dependencies:
+  - python=3.11
+  - pytorch
+  - torchvision
+  - matplotlib
+  - scipy
+  - imageio
+  - scikit-learn
+  - llvm
+  - pip:
+    - mitsuba
+    - tensorboard
+    - torchaudio
+    - psutil
+    - PyWavelets
