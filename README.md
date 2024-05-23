@@ -4,35 +4,55 @@ Main contribution of my Master's thesis.
 
 (Please note the following instructions may be slightly deprecated, as I am in the process of cleaning+documenting the most up-to-date iteration of this project for public release).
 
+Our approach for image verification comprises 4 stages which we often refer to throughout this project: 
+1. Correspondences dataset generation
+2. NN training
+3. Reconstruction
+4. Detection
 
 This repo contains the following structure: 
 ```angular2html
-data/                           # This is where input data (XML files) for mapping generation and unwarping is held 
-    iamge_to_unwarp/            # Reference images used for unwarping
-    xml_starters/               # xml files of scenes used as starting points for red dot sweep, unwarping, 
-                                # color correlation, or other rendering/visualization
-
-meshes/                         # mesh .obj files used to create cornell boxes in all xml files in this repo
-models/                         # contains the uv_cam <-> uv_tot prediction MLP model 
-train.py                        # All supporting training code for the NN 
-
-utils/                          # All necessary helpers for arg parsing, mapping generation, color correlation, NN 
-                                # training, testing, inference, visualization, and unwarping
-    generation/                 # Mapping generation related helpers
-    nn/                         # NN related helpers 
-    reconstruction/             # Unwarping related helpers 
-
-The 3 files you will be running are: 
-run_mapping_generation.py       # TOP LEVEL wrapper that sets up a new experiment for a new mappings datset.
+The four files you will use for the bare steps are: 
+run_generation.py (STEP 1)      # TOP LEVEL wrapper that sets up a new experiment to create a new correspondences dataset.
                                 # Integrates helpers + mappings.py into a desired mapping generation specified by the  
                                 # sweep ranges and other python args. Generates color correlation. NN and unwarping 
                                 # results will be saved in this experiment folder as well.
 
-run_nn.py                       # TOP LEVEL wrapper that handles everything related to training, testing, logging, &
-                                # visualizing a NN experiment. Everything saved in the experiment folder of the 
-                                # corresponding mappings dataset.
+run_nn.py (STEP 2)              # TOP LEVEL wrapper that handles everything related to training, testing, logging, &
+                                # visualizing a training experiment. Everything is saved in the experiment folder of the 
+                                # corresponding correspondences dataset, which was generated in step 1.
 
-run_unwarping.py                # Unwarp an image using the dataset and NN model specified 
+run_unwarping.py (STEP 3)       # Reconstruct the original image from an unverified input image, using the specified exp
+
+run_detection.py (STEP 4)       # Top level detection stage
+
+Other supporting files: 
+
+data/                           # This is where input data (XML files) for mapping generation and unwarping is held 
+    image_to_unwarp/            # Reference images used for unwarping
+    xml_starters/               # xml files of scenes used as starting points for red dot sweep, unwarping, 
+                                # color correlation, or other rendering/visualization
+
+meshes/                         # mesh .obj files used in synthetic scene generation, include cornell box parts and totem shapes
+
+models/                         # contains the MLP model(s) for predicting uv_cam <-> uv_tot refraction mappings 
+train.py                        # Top level training file for the MLP, supporting training, testing, inference, and visualization
+
+utils/                          # Helpers for all phases of the method including: correspondences generation, color correlation, data preprocessing/NN training, reconstruction, and detection 
+    generation/                 # Correspondences generation related helpers
+    nn/                         # NN related helpers for data pre and post processing
+    reconstruction/             # Helpers for unwarping totem image 
+    detection/                  # Helpers for running inconsistency detection + metrics
+    manip/                      # Support for automated colorpatch manipulation on desired data 
+
+config.py                       # For setting the rendering backend variant and input/output data paths
+environment.yml                 # Dependencies 
+run_command.sh                  # Helper for running remote experiments on shell
+run_*_machine_distributed.sh    # Support to run large experiments remotely and in parallel, on GPUs or CPUs
+run_kill_jobs.sh                # Failsafe stop all remote processes running via run_*_machine_distributed.sh  
+run_nn.py                       # Top level NN training file
+wavelets.py                     # Visualization of correspondence frequency heatmaps and wavelet transforms of input images
+
                                 
 ```
 
