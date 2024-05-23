@@ -59,9 +59,9 @@ class RedDotSceneSweeper:
                 seen_wcs.add((coord[0], coord[1]))
             buff_x = red_dot_pixel_factor_estimate * self.scene.resolution_x
             buff_y = red_dot_pixel_factor_estimate * self.scene.resolution_y
-            # if xmin - buff_x <= coord_ic[0] <= xmax + buff_x and ymin - buff_y <= coord_ic[1] <= ymax + buff_y:
-            #     skipped += 1
-            #     continue
+            if xmin - buff_x <= coord_ic[0] <= xmax + buff_x and ymin - buff_y <= coord_ic[1] <= ymax + buff_y:
+                skipped += 1
+                continue
             yield scene
 
         ar = [f"({c[0]}, {c[1]})" for c in seen_coords]
