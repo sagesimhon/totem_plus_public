@@ -67,60 +67,70 @@ wavelets.py                     # Visualization of correspondence frequency heat
    *NOTE* For a faster conda resolver, you can install the [libmamba solver](https://www.anaconda.com/blog/a-faster-conda-for-a-growing-community) before running these commands
 
 
-2. Make a local data directory for your experiments (preferably outside the project directory to avoid IDE indexing slowdowns. These directories will contain hundreds of thousands of XML files for the mappings sweep): 
+2. Make a local data directory for your experiments (preferably outside the project directory to avoid IDE indexing slowdowns. Before migrating to scene dictionaries, these directories generated hundreds of thousands of XML files for the mappings sweep. Still, the folder is large and best practice is to keep the experiments elsewhere): 
 
-   - e.g.``mkdir /Users/{your user}/data``
+   - e.g.``mkdir /Users/{your user}/experiments``
    or 
-   `mkdir data` in the desired location 
+   `mkdir experiments` in the desired location 
 
 
 3. Update the config file with the dependency from (2), and with your project name: 
 
-   - Change the variable in line 5 of the code `output_data_base_path = {absolute_path_to_your_data_dir}`
+   - Change the variable in line 7 of the code `output_data_base_path = {absolute_path_to_your_experiments_dir}`
    <br> 
-   - Change the variable in line 4 of the code `xml_data_base_path = {absolute path to your project dir - this will likely be called totems_plus}/data` <br>
+   - Change the variable in line 6 of the code `input_data_base_path = {absolute path to your project dir - i.e. 'totems_plus' if you keep the same name in your clone}/data` <br>
 
 
-4. (Variants) Optional: If you would like to manually install the compiler used by Mitsuba's rendering backend, LLVM, instead of from `environment.yml`:
-   - on Linux: `sudo dnf install llvm`. On mac: `brew install llvm`. 
+4. (Variants) Optional: If you would like to manually install the compiler used by Mitsuba's rendering backend, LLVM, instead of via `environment.yml`:
+   - On Linux: `sudo dnf install llvm`. On mac: `brew install llvm`. 
    - `export DRJIT_LIBLLVM_PATH=/path/to/libLLVM.so` (e.g. `export DRJIT_LIBLLVM_PATH=/usr/lib64/libLLVM.so`)
    - If you would like to use a different rendering variant, see `mitsuba` docs for a list of rendering variants, and change accordingly in `config.py`.
 
 ## How to run
 
-This code supports generation (i.e. running a sweep and creating + saving a mappings dataset), training, and reconstruction (unwarping). 
+This code supports the 4 stages of our work outlined above.
 
-#### To generate a mappings dataset: 
-   1. (Optional): Change the sweep range in L12-14 of `run_generation.py`. Default settings are fine if you would 
-like to sweep in the region that has been demonstrated so far in meetings. Note that the scene ranges from [-1,1] in all 3 dimensions.
-   2. Run with `python run_generation.py --exp_folder {your_experiment_name} --res {choose 728 or 256}`. Note that larger resolutions will take a very long time to run locally (res 728 took 2-3 days on my M1 Mac). 256 is reasonable.
-   <br> Other custom settings, including "n" the granularity of the sweep, are described in `utils.generation.get_mappings_args.py`
-   <br> For a fast run to just see working results, change `--n 50`
-   3. If you would like to disable parallelization or change the number of CPUs used or memory available, edit the relevant lines in 
-   `utils.generation.mappings_toplevel_helpers.py`. This involves the bool `is_parallel` and the arguments passed in on the call to `get_cpus`. Make sure to change the spare memory availability param in `get_cpus` (`mem_spare_gb`), if you want to make the most of your machine's resources. 
-<br>
+#### To generate a correspondences dataset:
+   1. Run `python run_generation.py --exp_folder {your_experiment_name} --res {minimum res supported is 256}`
+      - Note that larger resolutions will take a very long time to run locally (res 728 took 2-3 days on my M1 Mac). For this reason, the following options are available:
+        - You can run a pruned sweep and subsample test points with the optional argument --sweep_density  --sweep_density (fraction indicating % of test points sampled, default 1.0 but use a small number like 0.1 if you want to run a quick test first). This yields comparable reconstruction and detection results in a fraction of the time. 
+        - For a fast test or to target only a desired region, you can additionally edit the sweep ranges using --x/y_min and --x/y_max 
+        - Support for remote runs on a distributed system of GPUs can be found in run_generation_gpu_machine_distributed.sh
+        - There is an optional boolean --p argument indicating whether to use Python parallelization. Due to job splitting overhead, it only yielded slight improvements in speed, so we would recommend using one of the above alternative workarounds.
+      - For all custom settings, including totem shape, see `utils.generation.get_mappings_args.py`
 
-That's it! Results will be saved to `{absolute_path_to_your_data_dir}/{your_experiment_name}/`.  <br>
+[//]: # (   3. If you would like to disable parallelization or change the number of CPUs used or memory available, edit the relevant lines in )
+
+[//]: # (   `utils.generation.mappings_toplevel_helpers.py`. This involves the bool `is_parallel` and the arguments passed in on the call to `get_cpus`. Make sure to change the spare memory availability param in `get_cpus` &#40;`mem_spare_gb`&#41;, if you want to make the most of your machine's resources. )
+
+That's it! Results will be saved to `{absolute_path_to_your_data_dir}/{your_experiment_name}`.  <br>
 Results include <br>
 `mappings.json`, a dictionary of mappings `{uv_tot : uv_cam}`,  <br>
 `mappings_cam_to_tot.json`, a reverse dictionary `{uv_cam : uv_tot}` 
-overcoming the many-to-one data loss in the former dictionary <br>
-`space_covered.png`, a visual of the space of valid mappings found (any pixel that is purple represents a valid mapping found),  <br>
-`color_corr.png`, a 1:1 (data lost) color correlation, <br>
-`timing_iters.png`, a barplot of runtime/datapoint for each test point in the sweep <br>
-plus a few other minor things.. (todo)
+avoiding the many-to-one data loss in the former dictionary <br>
+`failures.json`, containing test points wherein the sweep failed to find a valid refraction <br>
+Depending on system level settings, you may also find some files related to runtime/logging stats including `progress.json`, `iter_times.json`, `timing_iters.png`
 
-#### To train a NN 
-1. Run `python run_nn.py --exp_folder {experiment folder containing the mappings dataset, generated above} --run_ext {name for this NN experiment}`. 
-See `utils.nn.get_nn_args.py` for more training settings.
+To qualitatively verify your results, run `python run_generation.py --exp_folder {name_used_above} --res {number_used_above} --action map_corr`.
+This will save an image of the 1:1 color correlation (and its corresponding np array). <br>
+
+
+#### To train a NN to predict correspondneces
+1. Run `python run_nn.py --exp_folder {experiment folder containing the mappings dataset, generated above} --res {resolution of the training set, i.e. resolution used in run_generation.py} --run_extension {name for this NN experiment}`. 
+See `utils.nn.get_nn_args.py` for more training, model architecture, and dataset-related settings.
 <br>
 
 Results will be saved to <br>
-`{absolute_path_to_your_data_dir}/{your_experiment_name}/nn/{value for run_ext arg}.` <br>
+`{absolute_path_to_your_data_dir}/{your_experiment_name}/nn/{value for run_extension arg}.` <br>
 Results include: <br>
-`model.pt`, the saved trained model <br>
-`metadata.json`, some metadata about the model used later for reconstruction (unwarping) <br>
-`pred_vs_truth_full.png`, a plot visualizing train + test results. <br>
+`models/model_*.pt`, the saved trained model on each epoch <br>
+`metadata.json`, some metadata about the model to be used later for reconstruction (unwarping) <br>
+`pred_vs_truth_full.png`, a scatter plot of all datapoints/preds, stats on final train/test/val errors. Note this scatterplot is generally not very readable due to the sheer number of datapoints. <br>
+`random_sample_visual_*.png`, ...which is why we include visualizations on tiny subsets of mid-training predictions at various epochs. <br>
+`training_curve.png`, training curve plot <br>
+
+Note that we also support Tensorboard logging, and you can visualize results on Tensorboard by running 
+`tensorboard --logdir={exp_folder}`.
 
 #### To unwarp (reconstruction)
 
