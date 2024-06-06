@@ -66,8 +66,10 @@ wavelets.py                     # Visualization of correspondence frequency heat
 
    *NOTE* For a faster conda resolver, you can install the [libmamba solver](https://www.anaconda.com/blog/a-faster-conda-for-a-growing-community) before running these commands
 
+    - Set the `DRJIT_LIBLLVM_PATH` environment variable to specify the path to `libLLVM.dylib`, e.g. `export DRJIT_LIBLLVM_PATH=/Users/sage/miniconda3/envs/totems/lib/libLLVM.18.1.dylib`    
 
-2. Make a local data directory for your experiments (preferably outside the project directory to avoid IDE indexing slowdowns. Before migrating to scene dictionaries, these directories generated hundreds of thousands of XML files for the mappings sweep. Still, the folder is large and best practice is to keep the experiments elsewhere): 
+
+2. Make a local data directory for your experiments: 
 
    - e.g.``mkdir /Users/{your user}/experiments``
    or 
