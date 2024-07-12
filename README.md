@@ -1,5 +1,5 @@
 # totem_plus
-![alt text](https://github.com/sagesimhon/totem_plus/blob/main/sample_other_shapes.png)
+![alt text](https://github.com/sagesimhon/totem_plus_public/blob/main/sample_other_shapes.png)
 Main contribution of my Master's thesis. 
 
 (Please note the following instructions may be slightly deprecated, as I am in the process of cleaning+documenting the most up-to-date iteration of this project for public release).
@@ -148,4 +148,4 @@ in a different position or the camera extrinsics might be different), I will add
 For now just directly change the file `unit_test_starter_res*.xml` where * indicates the desired res in consideration.
 
 # Sample Results
-![alt text](https://github.com/sagesimhon/totem_plus/blob/main/sample_results.png)
+![alt text](https://github.com/sagesimhon/totem_plus_public/blob/main/sample_results.png)
