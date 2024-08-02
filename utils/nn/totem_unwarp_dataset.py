@@ -71,7 +71,7 @@ def get_train_val_dataset(data_path, ratio=0.80, random_seed=0, with_outlier=Tru
     # maxs_o = uv_tots_full.max(dim=0)[0]
 
     val_len = int(len(uv_cams_full) * (1-ratio))
-    fixed_val_len = int(len(uv_cams_full) * (1-0.8)) # 11108 (for 256) = 20% val/test
+    twenty_val_len = int(len(uv_cams_full) * (1 - 0.8)) # 11108 (for 256) = 20% val/test
     if hardcoded:
         uv_cams_custom = np.load(hardcoded_path_cams)
         uv_tots_custom = np.load(hardcoded_path_tots)
@@ -94,6 +94,7 @@ def get_train_val_dataset(data_path, ratio=0.80, random_seed=0, with_outlier=Tru
             outputs = torch.Tensor(np.array(uv_cams_custom))
             vals_inputs = torch.Tensor(np.array(complement_uv_tots))
             vals_outputs = torch.Tensor(np.array(complement_uv_cams))
+            raise NotImplementedError('Must finish processing')
         else:
             inputs = torch.Tensor(np.array(uv_cams_custom))
             outputs = torch.Tensor(np.array(uv_tots_custom))
@@ -117,8 +118,8 @@ def get_train_val_dataset(data_path, ratio=0.80, random_seed=0, with_outlier=Tru
             # vals_outputs, _, _ = utils.normalize(vals_outputs, mins=mins_o, maxs=maxs_o)
 
             # For fair comparisons, take a random sample of fixed size of val_inputs/val_outputs
-            vals_inputs = vals_inputs[:fixed_val_len]
-            vals_outputs = vals_outputs[:fixed_val_len]
+            vals_inputs = vals_inputs[:twenty_val_len]
+            vals_outputs = vals_outputs[:twenty_val_len]
 
             print(f"LEN OF VAL SET (PRE TEST/VAL SPLIT): {len(vals_inputs)}")
             print(f"LEN OF TRAIN SET: {len(train_inputs)}")
@@ -151,8 +152,8 @@ def get_train_val_dataset(data_path, ratio=0.80, random_seed=0, with_outlier=Tru
         # vals_outputs = outputs[train_length:]
         vals_inputs = inputs[:val_len]
         vals_outputs = outputs[:val_len]
-        vals_inputs = vals_inputs[:fixed_val_len]
-        vals_outputs = vals_outputs[:fixed_val_len]
+        # vals_inputs = vals_inputs[:twenty_val_len]
+        # vals_outputs = vals_outputs[:twenty_val_len]
 
         train_inputs = inputs[val_len:]
         train_outputs = outputs[val_len:]
