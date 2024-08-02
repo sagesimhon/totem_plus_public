@@ -53,8 +53,9 @@ def train(model, criterion, optimizer, writer, trainloader, val_loader, embed_fn
                 inputs_uvc_unn = utils.unnormalize(data[0], in_mins, in_maxs).detach().numpy()
                 preds_uvt_unn = utils.unnormalize(outputs, out_mins, out_maxs).detach().numpy()
                 labels_uvt_unn = utils.unnormalize(data[1], out_mins, out_maxs).detach().numpy()
-                # Generate 50 unique random indices
-                indices = np.random.choice(inputs_uvc_unn.shape[0], 50, replace=False)
+                # Generate ~50 unique random indices
+                size = 50 if 50 <= outputs.shape[0] else outputs.shape[0]
+                indices = np.random.choice(inputs_uvc_unn.shape[0], size, replace=False)
                 # Select the corresponding rows from the arrays
                 pruned_inputs_unn = inputs_uvc_unn[indices]
                 pruned_preds_unn = preds_uvt_unn[indices]
