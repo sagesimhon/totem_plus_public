@@ -58,7 +58,7 @@ def deepcopy_dict_and_lists(o):
 class RedDotScene:
     resolution_x: int
     resolution_y: int
-    spp: int
+    spp: int = 128
     red_dot_wc: tuple[float, float, float] = default_red_dot_translate
     red_dot_scale: tuple[float, float, float] = default_red_dot_scale
     name: str = 'base'
@@ -124,89 +124,18 @@ class RedDotScene:
                 'radiance': {'type': 'rgb', 'value': default_red_dot_color}
             }
         }
-        # 'totem': {
-        #     'type': 'sphere',
-        #     'radius': 0.3,
-        #     'center': [0.0, -0.545, 1.0],
-        #     # 'radius': 0.2,
-        #     # 'center': [0.0, -0.79, 0.8],
-        #     'bsdf': {'type': 'ref', 'id': 'glass'}
-        # }}
+
 
     }
-    # scene_template: ClassVar[dict] = {
-    #     'type': 'scene',
-    #     'integrator': {
-    #         'type': 'path',
-    #         'max_depth': 4  # TODO consider this should be 8 for knot, was 5 previously
-    #     },
-    #     'sensor': {
-    #         'type': 'perspective',
-    #         'fov': 80,  # 39.3077,
-    #         # 'to_world': mi.ScalarTransform4f.look_at(
-    #         #     origin=default_camera_lookat['origin'],
-    #         #     target=default_camera_lookat['target'],
-    #         #     up=default_camera_lookat['up']
-    #         # ) @ mi.ScalarTransform4f.scale(default_camera_scale),
-    #         'sampler': {
-    #             'type': 'independent',
-    #             'sample_count': 16
-    #         },
-    #         'film': {
-    #             'type': 'hdrfilm',
-    #             'pixel_format': 'rgb',
-    #             'width': 1536,
-    #             'height': 1024
-    #         }
-    #     },
-    #     # BSDFs
-    #     'grey': {'type': 'diffuse', 'reflectance': {'type': 'rgb', 'value': [0.85, 0.85, 0.85]}},
-    #     'white': {'type': 'diffuse', 'reflectance': {'type': 'rgb', 'value': [0.885809, 0.698859, 0.666422]}},
-    #     'green': {'type': 'diffuse', 'reflectance': {'type': 'rgb', 'value': [0.105421, 0.37798, 0.076425]}},
-    #     'brown': {'type': 'diffuse', 'reflectance': {'type': 'rgb', 'value': [0.205, 0.05, 0.05]}},
-    #     'red': {'type': 'diffuse', 'reflectance': {'type': 'rgb', 'value': [0.570068, 0.0430135, 0.0443706]}},
-    #     'black': {'type': 'diffuse', 'reflectance': {'type': 'rgb', 'value': [0.0, 0.0, 0.0]}},
-    #     'glass': {'type': 'dielectric'},
-    #     'mirror': {'type': 'conductor'},
-    #
-    #     # Shapes
-    #     'red_dot': {
-    #         'type': 'obj',
-    #         'filename': 'meshes/sphere.obj',
-    #         # 'to_world': mi.ScalarTransform4f.translate(default_red_dot_translate).scale(default_red_dot_scale),
-    #         'bsdf': {'type': 'ref', 'id': 'red'},
-    #         'emitter': {
-    #             'type': 'area',
-    #             'radiance': {'type': 'rgb', 'value': default_red_dot_color}
-    #         }
-    #     }
-    #     # 'totem': {
-    #     #     'type': 'sphere',
-    #     #     'radius': 0.3,
-    #     #     'center': [0.0, -0.545, 1.0],
-    #     #     # 'radius': 0.2,
-    #     #     # 'center': [0.0, -0.79, 0.8],
-    #     #     'bsdf': {'type': 'ref', 'id': 'glass'}
-    #     # }}
-    #
-    # }
 
     def __post_init__(self):
         if self.totem == 'sphere':
             self.scene_template['totem'] = {
                 'type': 'sphere',
                 'radius': 0.3,
-                'center': self.totem_center,#[0.0, -0.545, 1.0],
-                # 'radius': 0.2,
-                # 'center': [0.0, -0.79, 0.8],
+                'center': self.totem_center,
                 'bsdf': {'type': 'ref', 'id': 'glass'}
         }
-            # self.scene_template['totem'] = {
-            # 'type': 'sphere',
-            # 'radius': 1.6781992623545596,
-            # 'center': [-8.686624053506775, -2.7969987705909323, -8.455511570224173],#, [0.0, -0.725, 0.0],
-            # 'bsdf': {'type': 'ref', 'id': 'glass'}
-            # }
         elif self.totem == 'sqp':
             self.scene_template['totem'] = {
                 'type': 'obj',
@@ -339,15 +268,12 @@ class RedDotScene:
             min_wc = np.array([center_wc[0] - radius_wc, center_wc[1] - radius_wc, center_wc[2]])
             max_wc = np.array([center_wc[0] + radius_wc, center_wc[1] + radius_wc, center_wc[2]])
             self.totem_bbox_wc = min_wc, max_wc
-            flip_y_convention = True
-            min_ic = self.world_to_image(min_wc, flip_y_convention=flip_y_convention)
-            max_ic = self.world_to_image(max_wc, flip_y_convention=flip_y_convention)
-            if flip_y_convention:
-                xmin, ymax = min_ic
-                xmax, ymin = max_ic
-                self.totem_bbox_ic = ((xmin, ymin), (xmax, ymax))
-            else:
-                self.totem_bbox_ic = (min_ic, max_ic)
+            # flip_y_convention = True; do the following:
+            min_ic = self.world_to_image(min_wc, flip_y_convention=True)
+            max_ic = self.world_to_image(max_wc, flip_y_convention=True)
+            xmin, ymax = min_ic
+            xmax, ymin = max_ic
+            self.totem_bbox_ic = ((xmin, ymin), (xmax, ymax))
 
     def world_to_image(self, world_coord, flip_y_convention=False) -> (int, int):
         # todo: this might be replaceable by mi.ScalarTransform4f.look_at
