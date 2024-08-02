@@ -39,14 +39,18 @@ train_dataset, val_dataset, in_mins, in_maxs, out_mins, out_maxs = totem_unwarp_
 val_dataset, test_dataset = random_split(val_dataset, [len(val_dataset)//2,math.ceil(len(val_dataset)/2)]) # TODO update hardcoding for this
 
 do_manual = args.is_manual_testset
-tv_inputs = torch.load(f'NEW_{args.res}_testset_in.pt')
-tv_outputs = torch.load(f'NEW_{args.res}_testset_out.pt')
-new_tot_mins, new_tot_maxs, new_cam_mins, new_cam_maxs = [torch.Tensor([282,740]), torch.Tensor([794,975]), torch.Tensor([1,1]), torch.Tensor([1022,1022])] #todo un-hardcode for res /shape
-manual_val_dataset = totem_unwarp_dataset.TotemUnwarpDataset(tv_inputs, tv_outputs)
-other_val_set, other_test_dataset = random_split(manual_val_dataset, [len(manual_val_dataset) // 2, math.ceil(
-    len(manual_val_dataset) / 2)])  # TODO update hardcoding for this
+# tv_inputs = torch.load(f'NEW_{args.res}_testset_in.pt') # hard testset arg
+# tv_outputs = torch.load(f'NEW_{args.res}_testset_out.pt') # hard testset arg
+
+# new_tot_mins, new_tot_maxs, new_cam_mins, new_cam_maxs = [torch.Tensor([282,740]), torch.Tensor([794,975]), torch.Tensor([1,1]), torch.Tensor([1022,1022])] #todo un-hardcode for res /shape
+# new_tot_mins, new_tot_maxs, new_cam_mins, new_cam_maxs = [torch.Tensor([282,740]), torch.Tensor([794,975]), torch.Tensor([1,1]), torch.Tensor([args.res-1,args.res-1])] #todo un-hardcode for res /shape
+
+# manual_val_dataset = totem_unwarp_dataset.TotemUnwarpDataset(tv_inputs, tv_outputs)
+# other_val_set, other_test_dataset = random_split(manual_val_dataset, [len(manual_val_dataset) // 2, math.ceil(
+#     len(manual_val_dataset) / 2)])  # TODO update hardcoding for this
 if do_manual:
-    test_dataset = other_test_dataset
+    raise NotImplementedError("Current implementation hardcoded for specific experiment!")
+    # test_dataset = other_test_dataset
 # Initialize dataloaders
 g = torch.Generator()
 g.manual_seed(seed)
@@ -122,9 +126,9 @@ else:
                              [in_mins, in_maxs, out_mins, out_maxs], epochs=args.num_epochs, totem_name=args.totem
                              )
 
-testloader, test_error = test(model, criterion, test_dataloader, embed_fn, writer, in_mins, in_maxs, out_mins, out_maxs, new_cam_mins, new_cam_maxs, new_tot_mins, new_tot_maxs, do_manual, res=args.res)
+testloader, test_error = test(model, criterion, test_dataloader, embed_fn, writer, in_mins, in_maxs, out_mins, out_maxs, in_mins, in_maxs, out_mins, out_maxs, do_manual, res=args.res)
 print(f"Test error {'manual' if do_manual else ''}", test_error)
-visualize_predictions(model, in_mins, in_maxs, out_mins, out_maxs, new_cam_mins, new_cam_maxs, new_tot_mins, new_tot_maxs, embed_fn, args.res, final_epoch_loss, test_error,
+visualize_predictions(model, in_mins, in_maxs, out_mins, out_maxs, in_mins, in_maxs, out_mins, out_maxs, embed_fn, args.res, final_epoch_loss, test_error,
                       train_dataloader, test_dataloader, path_to_exp=data_path, ext=args.run_extension,
                       is_embedded=args.use_embed_fn, lr=args.lr, batch_size=args.batch_size, epochs=args.num_epochs, is_man=do_manual)
 
