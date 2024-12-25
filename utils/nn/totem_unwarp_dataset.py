@@ -48,7 +48,7 @@ class TotemUnwarpDataset(torch.utils.data.Dataset):
 
 def get_train_val_dataset(data_path, ratio=0.80, random_seed=0, with_outlier=True, rev_mappings=True, hardcoded=False,
                           hardcoded_path_tots=None, hardcoded_path_cams=None, hardcoded_complement_tots=None,
-                          hardcoded_complement_cams=None, res=None, save=False
+                          hardcoded_complement_cams=None, res='NA', save=False
                           ):
     np.random.seed(random_seed)
 
