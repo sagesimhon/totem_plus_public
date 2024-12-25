@@ -278,8 +278,8 @@ for f in os.listdir(path_to_images):
                     else os.path.join(path_for_saving, name+'_unwarped.png')
                 savename_np = os.path.join(path_for_saving, f'{i}_unwarped.npy') if args.is_iterate \
                     else os.path.join(path_for_saving, name+'_unwarped.npy')
-                # savename = os.path.join(image_folder, f'{i}_unwarped.png')
-                # savename_np = os.path.join(image_folder, f'{i}_unwarped.npy')
+                # savename = os.path.join(this_images_folder, f'{i}_unwarped.png')
+                # savename_np = os.path.join(this_images_folder, f'{i}_unwarped.npy')
 
                 savepath_np = os.path.join(path, args.savefolder, savename_np)
                 np.save(savepath_np, unwarped_im)
