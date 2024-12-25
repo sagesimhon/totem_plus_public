@@ -16,7 +16,8 @@ def parse_arguments():
     parser.add_argument('--run_extension', type=str, default='', help='identifier to separate different nn run experiments')
 
     # Dataset context
-    parser.add_argument('--res', type=int, help='resolution of train dataset', required=True)
+    parser.add_argument('--res_x', type=int, help='resolution of train dataset in x', required=True)
+    parser.add_argument('--res_y', type=int, help='resolution of train dataset in y', required=True)
     parser.add_argument('--totem', type=str, default=None)
 
     # Manual datasets: Override automated dataset usage from exp folder:
