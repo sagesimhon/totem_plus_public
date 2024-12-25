@@ -14,7 +14,7 @@ def seed_worker(worker_id):
     np.random.seed(worker_seed)
     random.seed(worker_seed)
 
-def train(model, criterion, optimizer, writer, trainloader, val_loader, embed_fn, saveloc, res, normalization_nums, epochs=1, totem_name=''):
+def train(model, criterion, optimizer, writer, trainloader, val_loader, embed_fn, saveloc, res_x, res_y, normalization_nums, epochs=1, totem_name=''):
     if not os.path.exists(os.path.join(saveloc,'models')):
         os.mkdir(os.path.join(saveloc,'models'))
     in_mins, in_maxs, out_mins, out_maxs = normalization_nums
@@ -65,14 +65,14 @@ def train(model, criterion, optimizer, writer, trainloader, val_loader, embed_fn
                 pruned_labels = data[1].detach().numpy()[indices]
                 plt.figure(figsize=(6, 6))
 
-                plt.scatter(pruned_inputs_unn[:, 0], res - pruned_inputs_unn[:, 1], color='green', marker='x', alpha=0.5,
+                plt.scatter(pruned_inputs_unn[:, 0], res_y - pruned_inputs_unn[:, 1], color='green', marker='x', alpha=0.5,
                             label='inputs')
-                plt.scatter(pruned_preds_unn[:, 0], res - pruned_preds_unn[:, 1], color='blue', marker='x', alpha=0.5,
+                plt.scatter(pruned_preds_unn[:, 0], res_y - pruned_preds_unn[:, 1], color='blue', marker='x', alpha=0.5,
                             label='preds')
-                plt.scatter(pruned_labels_unn[:, 0], res - pruned_labels_unn[:, 1], color='orange', marker='x', alpha=0.5,
+                plt.scatter(pruned_labels_unn[:, 0], res_y - pruned_labels_unn[:, 1], color='orange', marker='x', alpha=0.5,
                             label='ground truth')
-                plt.xlim(0, res)
-                plt.ylim(0, res)
+                plt.xlim(0, res_x)
+                plt.ylim(0, res_y)
                 plt.legend()
 
                 # Draw a circle around the actual totem location
@@ -159,7 +159,7 @@ def train(model, criterion, optimizer, writer, trainloader, val_loader, embed_fn
     # Apply the formatter to the y-axis
     plt.gca().yaxis.set_major_formatter(formatter)
     plt.ylim(0, .01)
-    plt.suptitle(f"[{totem_name}] Training curve for res={res}; epochs={epochs}, batch size={trainloader.batch_size}", fontsize=10)
+    plt.suptitle(f"[{totem_name}] Training curve for res={res_x},{res_y}; epochs={epochs}, batch size={trainloader.batch_size}", fontsize=10)
     plt.title(f"Final training err: {avg_train_loss:.2e}; Final val err: {val_loss:.2e}", fontsize=10)
     plt.xlabel("Epoch")
     plt.ylabel("MSE")
@@ -176,9 +176,9 @@ def train(model, criterion, optimizer, writer, trainloader, val_loader, embed_fn
     savename = saveloc+'/val_losses'
     np.save(savename, val_losses)
 
-    return avg_train_loss #avg_epoch_loss
+    return avg_train_loss
 
-def test(model, criterion, testloader, embed_fn, writer, in_mins, in_maxs, out_mins, out_maxs, new_in_mins, new_in_maxs, new_out_mins, new_out_maxs, do_manual_test=False, res=None):
+def test(model, criterion, testloader, embed_fn, writer, in_mins, in_maxs, out_mins, out_maxs, new_in_mins, new_in_maxs, new_out_mins, new_out_maxs, do_manual_test=False):
     total_samples = 0
     total_error = 0
 
@@ -236,7 +236,7 @@ def inference(model, inputs, embed_fn, in_mins, in_maxs, out_mins, out_maxs):
     outputs = utils.unnormalize(outputs, out_mins, out_maxs)
     return outputs
 
-def visualize_predictions(model, in_mins, in_maxs, out_mins, out_maxs, new_in_mins, new_in_maxs, new_out_mins, new_out_maxs, embed_fn, size,
+def visualize_predictions(model, in_mins, in_maxs, out_mins, out_maxs, new_in_mins, new_in_maxs, new_out_mins, new_out_maxs, embed_fn, res_x, res_y,
                           train_err=None, test_err=None, trainloader=None, testloader=None,
                           is_inference=False, test=True, path_to_exp='.', ext='.', inference_data=None, inference_saveloc=None, is_embedded=False,
                           lr=None, batch_size=None, epochs=None, skip=2, testset=None, is_man=False):
@@ -303,13 +303,13 @@ def visualize_predictions(model, in_mins, in_maxs, out_mins, out_maxs, new_in_mi
         uv_tot_inputs_test = np.concatenate(uv_tot_inputs_test)
 
         # Plot scatter points with unique labels
-        # plt.scatter(uv_cam_predictions_train[:, 0], size - uv_cam_predictions_train[:, 1], color='blue', marker='x', alpha=0.5,label='predictions')
-        # plt.scatter(uv_cam_labels_train[:, 0], size - uv_cam_labels_train[:, 1], color='green', alpha=0.5,label='ground truth')
-        # plt.scatter(uv_tot_inputs_train[:, 0], size - uv_tot_inputs_train[:, 1], color='red',alpha=0.5, label='inputs (totem pixels)')
+        # plt.scatter(uv_cam_predictions_train[:, 0], res_y - uv_cam_predictions_train[:, 1], color='blue', marker='x', alpha=0.5,label='predictions')
+        # plt.scatter(uv_cam_labels_train[:, 0], res_y - uv_cam_labels_train[:, 1], color='green', alpha=0.5,label='ground truth')
+        # plt.scatter(uv_tot_inputs_train[:, 0], res_y - uv_tot_inputs_train[:, 1], color='red',alpha=0.5, label='inputs (totem pixels)')
 
-        plt.scatter(uv_cam_labels_test[:, 0], size - uv_cam_labels_test[:, 1], color='goldenrod', alpha=0.5,label='ground truth (test)')
-        plt.scatter(uv_cam_predictions_test[:, 0], size - uv_cam_predictions_test[:, 1], color='gold', marker='x', alpha=0.5, label='predictions (test)')
-        plt.scatter(uv_tot_inputs_test[:, 0], size - uv_tot_inputs_test[:, 1], color='maroon', alpha=0.5,label='inputs (totem pixels) (test)')
+        plt.scatter(uv_cam_labels_test[:, 0], res_y - uv_cam_labels_test[:, 1], color='goldenrod', alpha=0.5,label='ground truth (test)')
+        plt.scatter(uv_cam_predictions_test[:, 0], res_y - uv_cam_predictions_test[:, 1], color='gold', marker='x', alpha=0.5, label='predictions (test)')
+        plt.scatter(uv_tot_inputs_test[:, 0], res_y - uv_tot_inputs_test[:, 1], color='maroon', alpha=0.5,label='inputs (totem pixels) (test)')
 
         # plt.xlim(220, 520)
         # plt.ylim(-450+size, -80+size)
@@ -339,9 +339,9 @@ def visualize_predictions(model, in_mins, in_maxs, out_mins, out_maxs, new_in_mi
         # uv_cam_preds = np.concatenate(uv_cam_preds[0])
         # uv_tot_inputs = np.concatenate(uv_tot_inputs)
 
-        plt.scatter(uv_cam_preds[:, 0], size - uv_cam_preds[:, 1], color='goldenrod', alpha=0.5,
+        plt.scatter(uv_cam_preds[:, 0], res_y - uv_cam_preds[:, 1], color='goldenrod', alpha=0.5,
                     label='preds')
-        plt.scatter(uv_tot_inputs[:, 0], size - uv_tot_inputs[:, 1], color='gold', marker='x',
+        plt.scatter(uv_tot_inputs[:, 0], res_y - uv_tot_inputs[:, 1], color='gold', marker='x',
                     alpha=0.5, label='inputs')
 
         # plt.xlim(220, 520)
@@ -355,90 +355,6 @@ def visualize_predictions(model, in_mins, in_maxs, out_mins, out_maxs, new_in_mi
         plt.savefig(saveloc, bbox_inches='tight')
         # plt.show()
         plt.close()
-def visualize_predictions_iteratively(model, in_mins, in_maxs, out_mins, out_maxs, embed_fn, size,
-                          train_err=None, test_err=None, trainloader=None, testloader=None,
-                          inference=False, test=True, path_to_exp='.', ext='.', inference_data=None, inference_saveloc=None, is_embedded=False, is_man=False):
-    if not os.path.exists('iterative_plots'):
-        os.mkdir('iterative_plots')
-    # Create empty lists to store points for scatter plot
-    if not test:
-        raise NotImplementedError
-    if not inference:
-        if train_err is None or test_err is None or not trainloader or not testloader:
-            raise ValueError("train, test err, train, test loader must all have valid values (not None)")
-        uv_cam_predictions_train = []
-        uv_cam_labels_train = []
-        uv_tot_inputs_train = []
-
-        uv_cam_predictions_test = []
-        uv_cam_labels_test = []
-        uv_tot_inputs_test = []
-
-        dataloader = trainloader
-        for inputs, labels in dataloader:
-            embedded_inputs = embed_fn(inputs)
-            preds = model(embedded_inputs)
-            if is_embedded:
-                # take the first n,0:2 elements of the nx42 dimensional embedding, which went through the identity
-                preds = preds[:,0:2]
-            uv_cams = utils.unnormalize(preds, out_mins, out_maxs).detach().numpy()
-            uv_cams_true = utils.unnormalize(labels, out_mins, out_maxs).detach().numpy()
-            uv_tots = utils.unnormalize(inputs, in_mins, in_maxs).detach().numpy()
-
-            # Append scatter points to the respective lists
-            uv_cam_predictions_train.append(uv_cams)
-            uv_cam_labels_train.append(uv_cams_true)
-            uv_tot_inputs_train.append(uv_tots)
-
-        # Concatenate all scatter points
-        uv_cam_predictions_train = np.concatenate(uv_cam_predictions_train)
-        uv_cam_labels_train = np.concatenate(uv_cam_labels_train)
-        uv_tot_inputs_train = np.concatenate(uv_tot_inputs_train)
-
-        dataloader = testloader
-        for inputs, labels in dataloader:
-            embedded_inputs = embed_fn(inputs)
-            preds = model(embedded_inputs)
-            if is_embedded:
-                # take the first n,0:2 elements of the nx42 dimensional embedding, which went through the identity
-                preds = preds[:, 0:2]
-
-            uv_cams_test = utils.unnormalize(preds, out_mins, out_maxs).detach().numpy()
-            uv_cams_true_test = utils.unnormalize(labels, out_mins, out_maxs).detach().numpy()
-            uv_tots_test = utils.unnormalize(inputs, in_mins, in_maxs).detach().numpy()
-
-            # Append scatter points to the respective lists
-            uv_cam_predictions_test.append(uv_cams_test)
-            uv_cam_labels_test.append(uv_cams_true_test)
-            uv_tot_inputs_test.append(uv_tots_test)
-
-        # Concatenate all scatter points
-        uv_cam_predictions_test = np.concatenate(uv_cam_predictions_test)
-        uv_cam_labels_test = np.concatenate(uv_cam_labels_test)
-        uv_tot_inputs_test = np.concatenate(uv_tot_inputs_test)
-
-        # Iteratively plot scatter points with unique labels
-        for i in range(1,len(uv_cam_predictions_train)+1):
-            plt.scatter(uv_cam_predictions_train[0:i, 0], size - uv_cam_predictions_train[0:i, 1], color='blue', marker='x', alpha=0.5,label='predictions')
-            plt.scatter(uv_cam_labels_train[0:i, 0], size - uv_cam_labels_train[0:i, 1], color='green', alpha=0.5,label='ground truth')
-
-            plt.scatter(uv_tot_inputs_train[0:i, 0], size - uv_tot_inputs_train[0:i, 1], color='red',alpha=0.5, label='inputs (totem pixels)')
-
-            # plt.scatter(uv_cam_labels_test[0:i, 0], 256 - uv_cam_labels_test[0:i, 1], color='goldenrod', alpha=0.5,label='ground truth (test)')
-            # plt.scatter(uv_cam_predictions_test[0:i, 0], 256 - uv_cam_predictions_test[0:i, 1], color='gold', marker='x', alpha=0.5, label='predictions (test)')
-            # plt.scatter(uv_tot_inputs_test[0:i, 0], 256 - uv_tot_inputs_test[0:i, 1], color='maroon', alpha=0.5,label='inputs (totem pixels) (test)')
-
-            plt.xlim(80,180)
-            plt.ylim(0,140)
-
-            plt.suptitle("(Full dataset_helpers) Predicted vs True Camera Pixels (80-20 split)")
-            plt.title(f"{i} POINTS. Train error on final epoch: {train_err:.2e}. Test error (is_full_range: {is_man}): {test_err:.2e}", fontsize=9.5)
-            # plt.legend(loc='upper right', bbox_to_anchor=(1.5, 1.0))
-            saveloc = os.path.join(path_to_exp, 'nn', ext, 'iterative_plots', f'pred_vs_truth_full_{is_man}_{i}.png') # TODO: Add higher folder name later
-            plt.savefig(saveloc, bbox_inches='tight')
-            plt.close()
-    else:
-        raise NotImplementedError
 
 def add_circle(center, radius):
 
