@@ -32,10 +32,15 @@ if not os.path.exists(os.path.join(data_path, 'nn', args.run_extension)):
     os.mkdir(os.path.join(data_path, 'nn', args.run_extension))
     os.mkdir(os.path.join(data_path, 'nn', args.run_extension, 'iterative_plots'))
 
+if args.res_x == args.res_y:
+    res_name = f'{args.res_x}'
+else:
+    res_name = f'{args.res_x}_x_{args.res_y}_y'
+
 # Initialize datasets
 train_dataset, val_dataset, in_mins, in_maxs, out_mins, out_maxs = totem_unwarp_dataset.get_train_val_dataset(data_path, ratio=0.80, hardcoded=(args.hard_cams is not None),
                                                                                                               hardcoded_path_cams=args.hard_cams, hardcoded_path_tots=args.hard_tots,
-                                                                                                              hardcoded_complement_cams=args.hard_cams_comp, hardcoded_complement_tots=args.hard_tots_comp, res=args.res, save=False)
+                                                                                                              hardcoded_complement_cams=args.hard_cams_comp, hardcoded_complement_tots=args.hard_tots_comp, res=res_name, save=False)
 val_dataset, test_dataset = random_split(val_dataset, [len(val_dataset)//2,math.ceil(len(val_dataset)/2)]) # TODO update hardcoding for this
 
 do_manual = args.is_manual_testset
@@ -122,13 +127,13 @@ if just_test:
     final_epoch_loss = 00
 
 else:
-    final_epoch_loss = train(model, criterion, optimizer, writer, train_dataloader, val_dataloader, embed_fn, saveloc, args.res,
+    final_epoch_loss = train(model, criterion, optimizer, writer, train_dataloader, val_dataloader, embed_fn, saveloc, args.res_x, args.res_y,
                              [in_mins, in_maxs, out_mins, out_maxs], epochs=args.num_epochs, totem_name=args.totem
                              )
 
-testloader, test_error = test(model, criterion, test_dataloader, embed_fn, writer, in_mins, in_maxs, out_mins, out_maxs, in_mins, in_maxs, out_mins, out_maxs, do_manual, res=args.res)
+testloader, test_error = test(model, criterion, test_dataloader, embed_fn, writer, in_mins, in_maxs, out_mins, out_maxs, in_mins, in_maxs, out_mins, out_maxs, do_manual)
 print(f"Test error {'manual' if do_manual else ''}", test_error)
-visualize_predictions(model, in_mins, in_maxs, out_mins, out_maxs, in_mins, in_maxs, out_mins, out_maxs, embed_fn, args.res, final_epoch_loss, test_error,
+visualize_predictions(model, in_mins, in_maxs, out_mins, out_maxs, in_mins, in_maxs, out_mins, out_maxs, embed_fn, args.res_x, args.res_y, final_epoch_loss, test_error,
                       train_dataloader, test_dataloader, path_to_exp=data_path, ext=args.run_extension,
                       is_embedded=args.use_embed_fn, lr=args.lr, batch_size=args.batch_size, epochs=args.num_epochs, is_man=do_manual)
 
