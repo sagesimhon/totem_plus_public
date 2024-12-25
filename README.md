@@ -135,11 +135,13 @@ Note that we also support Tensorboard logging. You can visualize results on Tens
 #### To unwarp (reconstruction)
 
 0. Save desired (totem-less) unverified images in a folder under `path_to_repo/data/images_to_unwarp` 
-1. Run `python run_unwarping_image_based.py --exp_folder {same as above} --nn_folder {same as run_ext above} --res_x {must be consistent with the resolution of the mappings dataset for the associated exp} --res_y {must be consistent with the resolution of the mappings dataset for the associated exp} --im_folder images_to_unwarp` 
+1. Run `python run_unwarping.py --exp_folder {same as above} --nn_folder {same as run_ext above} --res {must be consistent with the resolution of the mappings dataset for the associated exp} --im_folder images_to_unwarp` 
 <br>
 
 Results will be saved to 
 `{absolute_path_to_your_data_dir}/{your_experiment_name}/{image_name_*_unwarped.png}.` <br>
+
+#### Detection Instructions Coming Soon
 
 [//]: # (## Custom scenes for test sweeping )
 
