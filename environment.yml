@@ -3,7 +3,7 @@ channels:
   - conda-forge
   - pytorch
 dependencies:
-  - python=3.11
+  - python=3.9
   - pytorch
   - torchvision
   - matplotlib
@@ -17,3 +17,4 @@ dependencies:
     - torchaudio
     - psutil
     - PyWavelets
+    - opencv-python
