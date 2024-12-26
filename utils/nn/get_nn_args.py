@@ -1,9 +1,8 @@
 import argparse
 
 import config
-from config import input_data_base_path, output_data_base_path
 from distutils.util import strtobool
-import os
+
 def bool_type(x):
     return bool(strtobool(x))
 

@@ -2,7 +2,6 @@ import logging
 import math
 import traceback
 
-import numpy as np
 import psutil as psutil
 import os
 import json
