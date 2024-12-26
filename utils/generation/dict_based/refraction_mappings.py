@@ -1,5 +1,5 @@
-import json
 import logging
+import warnings
 from copy import deepcopy
 from dataclasses import dataclass, field
 
@@ -22,6 +22,7 @@ class RedDotSceneTotemRefractionMapper:
     base_output_path: str
     scene: RedDotScene
     centroid_distance_threshold_res_factor: int = 13 / 2048
+    centroid_distance_to_cam_threshold: int = 5
     img_color_threshold: float = .1
 
     image: mi.TensorXf = field(init=False)
@@ -36,8 +37,10 @@ class RedDotSceneTotemRefractionMapper:
 
     def render_and_compute_refraction_mappings(self, is_save_plot=False):
         """
-        Compute uv_tot/uv_cam mapping for a red dot in a scene with a single totem.
+        Compute and set uv_tot/uv_cam mapping for a red dot in a scene with a single totem.
+        Scene rendered in the process.
         """
+
         self.logger.debug(f'loading scene: {self.scene.name}')
         compiled_scene = mi.load_dict(self.scene.scene_definition)   # todo: evaluate if parallel=False is too slow
         self.logger.debug(f'Rendering scene: {self.scene.name}')
@@ -46,167 +49,66 @@ class RedDotSceneTotemRefractionMapper:
         self.uv_cam = self.scene.world_to_image(self.scene.red_dot_wc, flip_y_convention=True)
         self.get_centroids(is_save_plot, is_many=(self.scene.totem != 'sphere'))      # sets uv_tot. todo: now its either 1,2 or 2,1 instead of 2,2 - clarify
 
-    def render_only(self, is_save_plot=False):
-        """
-        Compute uv_tot/uv_cam mapping for a red dot in a scene with a single totem.
-        """
-        self.scene.set_background_image()
-
-        self.logger.debug(f'loading scene: {self.scene.name}')
-        compiled_scene = mi.load_dict(self.scene.scene_definition)  # todo: evaluate if parallel=False is too slow
-        self.logger.debug(f'Rendering scene: {self.scene.name}')
-        self.image = mi.render(compiled_scene)
-        self.logger.debug(f'Computing centroids for scene: {self.scene.name}')
-        self.uv_cam = self.scene.world_to_image(self.scene.red_dot_wc, flip_y_convention=True)
-        self.get_centroids_only_render(is_save_plot=False)  # sets uv_tot. todo: now its either 1,2 or 2,1 instead of 2,2 - clarify
-
-
     def translate_totem_coordinates_by_film_crop_offset(self, uv_tot):
+        """
+        Adjusts u,v coordinates by the film's crop offsets from the scene definition.
+
+        Args:
+            uv_tot (tuple): Original image coordinates
+
+        Returns:
+            tuple: Translated image coordinates.
+        """
         x = uv_tot[0] + self.scene.scene_definition['sensor']['film'].get('crop_offset_x', 0)  # x
         y = uv_tot[1] + self.scene.scene_definition['sensor']['film'].get('crop_offset_y', 0)  # y
         return x, y
 
-    def in_bbox(self, x, y):
-        tot_bbox = self.scene.totem_bbox_ic
-        xmin, ymin = tot_bbox[0]
-        xmax, ymax = tot_bbox[1]
-        return xmin <= x <= xmax and ymin <= y <= ymax
+    # def in_bbox(self, x, y):
+    #     tot_bbox = self.scene.totem_bbox_ic
+    #     xmin, ymin = tot_bbox[0]
+    #     xmax, ymax = tot_bbox[1]
+    #     return xmin <= x <= xmax and ymin <= y <= ymax
 
     def euclidean_distance(self, point1, point2):
         return math.sqrt((point2[0] - point1[0]) ** 2 + (point2[1] - point1[1]) ** 2)
 
     def get_centroids(self, is_save_plot, is_many=False):
+        """
+        Identifies and filters centroids of connected non-black pixel clusters in the rendered image,
+        then assigns relevant centroid to uv_tot attribute via an educated guess.
+
+        Args:
+            is_save_plot (bool): Whether to save a plot of the rendered results for debugging.
+            is_many (bool, optional): Indicates if multiple centroids are expected. Defaults to False.
+
+        Returns:
+            None: Updates `self.uv_tot` with the calculated centroid(s).
+        """
+        # TODO test new implementation
+        warnings.warn("The updated 'get_centroids' method hasn't been fully tested and may not work as expected.", UserWarning)
+
         if self.image is None:
-            raise f'No image rendered, cannot proceed.'
+            raise RuntimeError('No image rendered, cannot proceed.')
 
         # Convert drjit.ArrayBase to NumPy array
         self.logger.debug(f'Converting image (actual render): {self.scene.name}')
         np_img = np.array(self.image)
 
-        # Find the connected components of non-black pixels
-        # Create a binary mask of non-black pixels, avoiding small
-        # off-black pixels (not sure what their origin is)
-        self.logger.debug(f'Filtering image for centroids: {self.scene.name}')
-        mask = np.any(np_img > self.img_color_threshold, axis=2)
-        labels, num_labels = label(mask)  # Label connected components
-
-        # Calculate the centroid of each component
-        self.logger.debug(f'Calculating centroids: {self.scene.name} -- {num_labels} labels found')
-        centroids = []
-        for i in range(1, num_labels + 1):               # Skip label 0, which corresponds to the black pixels
-            # indices = np.argwhere(labels == i)          # Find the indices of pixels in the component
-            centroid = center_of_mass(mask, labels, i)   # Calculate the centroid
-            centroids.append(centroid)
-
-        # Filter centroids based on distance threshold
-        # TODO change to just consider all contiguous clusters?
-        self.logger.debug(f'Filtering centroids: {self.scene.name} -- {num_labels}')
-        filtered_centroids = []
-        for i, c1 in enumerate(centroids):
-            is_far_enough = all(cdist([c1], [c2]) > self.centroid_distance_threshold_res_factor * self.scene.resolution_x
-                                for j, c2 in enumerate(filtered_centroids) if j != i)
-            if is_far_enough:
-                 filtered_centroids.append(c1)
-            # filtered_centroids.append(c1)
-        # Convert centroids from float to integer coordinates
-        filtered_centroids = [(int(round(c[0])), int(round(c[1]))) for c in filtered_centroids]
-
-        np_img = np.array(self.image)
+        # Identify centroids
+        centroids, num_labels = self._find_centroids(np_img)
+        filtered_centroids = self._filter_centroids_by_distance(centroids, num_labels)
 
         expected_centroids = 1 if self.scene.is_render_only_totem else 2
-        if is_many:
-            # for y, x in filtered_centroids:
-            #     if self.in_bbox(x,y):
-            # Just choose the brightest pixel.
-            sum_z = [
-                np.sum(np_img[y, x])
-                + (np.sum(np_img[y + 1, x]) if y + 1 < len(np_img) else 0)
-                + (np.sum(np_img[y, x + 1]) if x + 1 < len(np_img[y]) else 0)
-                + (np.sum(np_img[y - 1, x]) if y > 0 else 0)
-                + (np.sum(np_img[y, x - 1]) if x > 0 else 0)
-                + (np.sum(np_img[y - 1, x - 1]) if x > 0 and y > 0 else 0)
-                + (np.sum(np_img[y + 1, x - 1]) if x > 0 and y + 1 < len(np_img) else 0)
-                + (np.sum(np_img[y - 1, x + 1]) if x + 1 < len(np_img[y]) and y > 0 else 0)
-                + (np.sum(np_img[y + 1, x + 1]) if x + 1 < len(np_img[y]) and y + 1 < len(np_img) else 0)
-                for y, x in filtered_centroids
-            ]
-            if len(filtered_centroids) == expected_centroids:
-                pass
-            elif len(filtered_centroids) < expected_centroids:
-                if is_save_plot:
-                    self.save_sweep_figures(np_img, filtered_centroids)
-                raise AssertionError(f"Could not find a refraction, for (u,v)_cam coord {self.uv_cam}")
-            else:
-                if self.euclidean_distance(
-                        self.flip_coords_and_translate_and_assert_valid(filtered_centroids[sum_z.index(max(sum_z))]),
-                        self.uv_cam) < 5:
-                    max_index = sum_z.index(max(sum_z))
-                    sum_z.pop(max_index)
-                    filtered_centroids.pop(max_index)
+        if not is_many and len(filtered_centroids) > expected_centroids + 2:
+            raise AssertionError(f"MORE THAN {expected_centroids + 2} filtered centroids, expected {expected_centroids}!"
+                                 f" (u,v)_cam is {self.uv_cam}")
 
-                # Take the dimmest n - 1 or n - 2 out
-                # if np.linalg.norm(self.flip_coords_and_translate_and_assert_valid(filtered_centroids[sum_z.index(max(sum_z))]) - self.uv_cam
-                while len(filtered_centroids) > expected_centroids:
-                    min_index = sum_z.index(min(sum_z))
-                    sum_z.pop(min_index)
-                    filtered_centroids.pop(min_index)
-        else:
-            if len(filtered_centroids) == expected_centroids:
-                pass
+        filtered_centroids = self._refine_centroids(np_img, filtered_centroids, expected_centroids, is_many,
+                                                    is_save_plot)
 
-            elif expected_centroids + 1 <= len(filtered_centroids) <= expected_centroids + 2:
-                # If exactly 1 or 2 extra centroid (assumption=this only happens once or twice), Filter out the higher order reflection which are usually dimmer.
-
-                sum_z = [
-                    np.sum(np_img[y, x])
-                    + (np.sum(np_img[y + 1, x]) if y + 1 < len(np_img) else 0)
-                    + (np.sum(np_img[y, x + 1]) if x + 1 < len(np_img[y]) else 0)
-                    + (np.sum(np_img[y - 1, x]) if y > 0 else 0)
-                    + (np.sum(np_img[y, x - 1]) if x > 0 else 0)
-                    + (np.sum(np_img[y - 1, x - 1]) if x > 0 and y > 0 else 0)
-                    + (np.sum(np_img[y + 1, x - 1]) if x > 0 and y + 1 < len(np_img) else 0)
-                    + (np.sum(np_img[y - 1, x + 1]) if x + 1 < len(np_img[y]) and y > 0 else 0)
-                    + (np.sum(np_img[y + 1, x + 1]) if x + 1 < len(np_img[y]) and y + 1 < len(np_img) else 0)
-                    for y, x in filtered_centroids
-                ]
-                min_index = sum_z.index(min(sum_z))
-                filtered_centroids.pop(min_index)
-                self.logger.debug("popped the smaller/dimmer centroid!")
-                if len(filtered_centroids) >= expected_centroids + 1:
-                    sum_z.pop(min_index)
-                    min_index = sum_z.index(min(sum_z))
-                    filtered_centroids.pop(min_index)
-                    self.logger.debug("popped another smaller/dimmer centroid!")
-                if len(filtered_centroids) != expected_centroids:
-                    self.logger.error(f'centroids are: {filtered_centroids}')
-                    if is_save_plot:
-                        self.save_sweep_figures(np_img, filtered_centroids)
-                    raise AssertionError("Error/Bug, this should never happen!")
-            elif len(filtered_centroids) > expected_centroids + 2:
-                self.logger.error(f'centroids are: {filtered_centroids}')
-                if is_save_plot:
-                    self.save_sweep_figures(np_img, filtered_centroids)
-                raise AssertionError(f"MORE THAN {expected_centroids + 2} filtered centroids!! (u,v)_cam is {self.uv_cam}")
-            elif len(filtered_centroids) < expected_centroids:
-                self.logger.error(f'centroids are: {filtered_centroids}')
-                # plt.imshow(np_img ** (1.0 / 2.2), interpolation='none')
-                # plt.title(f'No centroids found, camera coord {self.uv_cam}')
-                # path = os.path.join(self.base_output_path, 'renderings_failures')
-                # os.makedirs(path, exist_ok=True)
-                # centroids_fname = os.path.join(path, f'render_{self.scene.name}_centroids.png')
-                # plt.savefig(centroids_fname)
-                # plt.close()
-                if is_save_plot:
-                    self.save_sweep_figures(np_img, filtered_centroids)
-                raise AssertionError(f"Could not find a refraction, for (u,v)_cam coord {self.uv_cam}")
-            else:
-                if is_save_plot:
-                    self.save_sweep_figures(np_img, filtered_centroids)
-                raise AssertionError("something else is up :/")
-
+        # Assign the appropriate centroid(s)
         if self.scene.is_render_only_totem:
-            uv_tot = filtered_centroids[0]
-            uv_tot = self.flip_coords_and_translate_and_assert_valid(uv_tot)
+            uv_tot = self.flip_coords_and_translate_and_assert_valid(filtered_centroids[0])
         else:
             self.logger.debug(f'Labeling centroids for scene: {self.scene.name}')
             uv_cam_from_dot, uv_tot = self.flip_coords_and_label_centroids(filtered_centroids)
@@ -215,8 +117,108 @@ class RedDotSceneTotemRefractionMapper:
         if is_save_plot:
             self.save_sweep_figures(np_img, filtered_centroids)
 
+    def _find_centroids(self, np_img):
+        """Finds centroids of connected non-black pixel clusters."""
+
+        # Create a binary mask of non-black pixels, avoiding small
+        # off-black pixels (not sure what their origin is)
+        self.logger.debug(f'Filtering image for centroids: {self.scene.name}')
+        mask = np.any(np_img > self.img_color_threshold, axis=2)
+        labels, num_labels = label(mask)
+
+        self.logger.debug(f'Calculating centroids: {self.scene.name} -- {num_labels} labels found')
+        centroids = [
+            center_of_mass(mask, labels, i) for i in range(1, num_labels + 1)  # Skip label 0 (background)
+        ]
+        return centroids, num_labels
+
+    def _filter_centroids_by_distance(self, centroids, num_labels):
+        """Filters centroids based on a distance threshold."""
+
+        self.logger.debug(f'Filtering centroids: {self.scene.name} -- {num_labels}')
+        filtered_centroids = []
+        # TODO change to just consider all contiguous clusters?
+        for i, c1 in enumerate(centroids):
+            is_far_enough = all(
+                cdist([c1], [c2]) > self.centroid_distance_threshold_res_factor * self.scene.resolution_x
+                for j, c2 in enumerate(filtered_centroids) if j != i
+            )
+            if is_far_enough:
+                filtered_centroids.append(c1)
+        return [(int(round(c[0])), int(round(c[1]))) for c in filtered_centroids]
+
+    def _refine_centroids(self, np_img, centroids, expected_count, is_many, is_save_plot):
+        """Refines the centroid list to match the expected count."""
+
+        sum_z = self._calculate_brightness(np_img, centroids)
+
+        if len(centroids) < expected_count:
+            self._handle_insufficient_centroids(np_img, centroids, is_save_plot, expected_count)
+        elif len(centroids) > expected_count:
+            # Remove possible false positives (i.e. camera blob masking as a totem blob)
+            max_index = sum_z.index(max(sum_z))
+            if self.euclidean_distance(
+                    self.flip_coords_and_translate_and_assert_valid(centroids[max_index]),
+                    self.uv_cam) < self.centroid_distance_to_cam_threshold:
+                sum_z.pop(max_index)
+                centroids.pop(max_index)
+
+            centroids = self._remove_excess_centroids(centroids, sum_z, expected_count, is_save_plot)
+
+        return centroids
+
+    def _calculate_brightness(self, np_img, centroids):
+        """Calculates the brightness of regions around each centroid, including boundary checks."""
+
+        height, width = np_img.shape[:2]
+
+        def get_pixel_sum(y, x):
+            """Safely gets the pixel sum at (y, x) with boundary checks."""
+            if 0 <= y < height and 0 <= x < width:
+                return np.sum(np_img[y, x])
+            return 0
+
+        return [
+            get_pixel_sum(y, x) +
+            get_pixel_sum(y + 1, x) +
+            get_pixel_sum(y, x + 1) +
+            get_pixel_sum(y - 1, x) +
+            get_pixel_sum(y, x - 1) +
+            get_pixel_sum(y - 1, x - 1) +
+            get_pixel_sum(y + 1, x - 1) +
+            get_pixel_sum(y - 1, x + 1) +
+            get_pixel_sum(y + 1, x + 1)
+            for y, x in centroids
+        ]
+
+    def _get_neighbors(self, y, x, np_img):
+        """Returns valid neighbor coordinates around a given point."""
+
+        height, width = np_img.shape[:2]
+        neighbors = [
+            (y + dy, x + dx) for dy, dx in
+            [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
+        ]
+        return [(ny, nx) for ny, nx in neighbors if 0 <= ny < height and 0 <= nx < width]
+
+    def _handle_insufficient_centroids(self, np_img, centroids, is_save_plot, expected_count):
+        """Handles cases where fewer centroids are found than expected."""
+
+        if is_save_plot:
+            self.save_sweep_figures(np_img, centroids)
+        raise AssertionError(f"Could not find enough centroids. Found: {len(centroids)}, expected {expected_count}.")
+
+    def _remove_excess_centroids(self, centroids, sum_z, expected_count, is_save_plot):
+        """Removes dimmest centroids until the expected count is reached."""
+
+        while len(centroids) > expected_count:
+            min_index = sum_z.index(min(sum_z))
+            centroids.pop(min_index)
+            sum_z.pop(min_index)
+        return centroids
 
     def save_sweep_figures(self, np_img, filtered_centroids):
+        """Save rendering with details of found centroids."""
 
         np_img_plotting = np.copy(np_img)
         h, w = np_img_plotting.shape[0], np_img_plotting.shape[1]
@@ -247,27 +249,21 @@ class RedDotSceneTotemRefractionMapper:
         plt.close()
         self.logger.info('Plotting complete')
 
-    def get_centroids_only_render(self, is_save_plot=True):
-        if self.image is None:
-            raise f'No image rendered, cannot proceed.'
+    def render_only(self, is_save_plot=False):
+        """
+        Renders the scene without computing centroids, optionally saving the output.
+        """
+        #TODO test new implementation
+        warnings.warn("The updated 'render_only' method hasn't been fully tested and may not work as expected.", UserWarning)
 
-        # Convert drjit.ArrayBase to NumPy array
-        self.logger.debug(f'Converting image (actual render): {self.scene.name}')
-        np_img = np.array(self.image)
+        self.scene.set_background_image()
+        self.logger.debug(f'Loading scene: {self.scene.name}')
+        compiled_scene = mi.load_dict(self.scene.scene_definition)  # Evaluate if parallel=False is too slow
+        self.logger.debug(f'Rendering scene: {self.scene.name}')
+        self.image = mi.render(compiled_scene)
 
         if is_save_plot:
-            np_img_plotting = np.copy(np_img)
-            h, w = np_img_plotting.shape[0], np_img_plotting.shape[1]
-            alpha_channel = np.ones((h, w, 1), dtype=np_img_plotting.dtype)
-            rgba_img = np.concatenate((np_img_plotting, alpha_channel), axis=-1)
-
-            plt.imshow(rgba_img ** (1.0 / 2.2), interpolation='none')
-            path = os.path.join(self.base_output_path, 'renderings')
-            os.makedirs(path, exist_ok=True)
-            centroids_fname = os.path.join(path, f'render_{self.scene.name}.png')
-            plt.savefig(centroids_fname)
-            plt.close()
-            self.logger.info('Plotting complete')
+            self.save_sweep_figures(np.array(self.image), [])
 
     def flip_coords_and_translate_and_assert_valid(self, uv_tot):
         xmin, ymin = self.scene.totem_bbox_ic[0]
