@@ -4,6 +4,7 @@ from config import mi_variant
 import mitsuba as mi
 mi.set_variant(mi_variant)
 import numpy as np
+
 def to_arr(uv):
     # convert string representation in mapping to array of coordinate
     return [float(num) for num in uv.strip('()').split(',')]
