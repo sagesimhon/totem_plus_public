@@ -12,8 +12,18 @@ from utils.generation.dict_based.get_mappings_args import parse_mappings_argumen
 from utils.generation.dict_based.mappings_generator import MappingsGenerator
 from utils.generation.dict_based.scene import RedDotScene
 
-
 def generate_mappings(args):
+    """
+        Generate mappings dataset for rendering experiments.
+
+        Args:
+            args (Namespace): Command-line arguments containing configuration for mappings generation.
+
+        Returns:
+            None
+
+        Saves output data in path_to_exp_name/
+    """
     output_data_path = os.path.join(args.output_data_base_path, args.exp_folder)
     os.makedirs(output_data_path, exist_ok=True)
     from_iter = 0
@@ -47,15 +57,29 @@ def generate_mappings(args):
 
 # Color correlation #
 def obtain_color_corr(args, bg=None, fname_suffix=''):
+    """
+        Generate a color correlation visualization for the given scene.
+
+        Args:
+            args (Namespace): Command-line arguments containing configuration for color correlation.
+            bg (str, optional): Path to the background image. Defaults to None.
+            fname_suffix (str, optional): Custom filename suffix for output files. Defaults to ''.
+
+        Returns:
+            None
+
+        Saves output data in path_to_exp_name/
+    """
     output_data_path = os.path.join(args.output_data_base_path, args.exp_folder)
     scene = RedDotScene(args.res, args.res, args.spp, is_render_only_totem=False, totem=args.totem)
     scene.set_transforms()
     scene.modify_scene_for_postprocessing(bg)
-    # scene.get_color_corr_or_space_covered(output_data_path, is_rev=False, vertical_gradient=True, custom_fname_suffix=fname_suffix)
     scene.get_color_corr_or_space_covered(output_data_path, is_rev=True, custom_fname_suffix=fname_suffix+'alpha0d7')
 
 
 def main():
+    """Parse arguments and execute the specified action (generate mappings or obtain color correlation)."""
+
     logging.basicConfig(format='%(asctime)s %(name)s.%(funcName)s [%(levelname)s]: %(message)s', level=logging.INFO)
     args = parse_mappings_arguments()
     if args.action == 'generate':

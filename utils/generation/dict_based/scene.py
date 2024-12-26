@@ -4,17 +4,16 @@ import json
 import logging
 import math
 import os
+import warnings
 from dataclasses import dataclass, field
 from typing import ClassVar
-
-# import cv2
 import numpy as np
-
-import mitsuba as mi
 from matplotlib import pyplot as plt
 
+import mitsuba as mi
 from config import mi_variant
 mi.set_variant(mi_variant)
+
 # define these defaults here to be used to generate transformations, as they are not stored anywhere in the scene dict.
 
 # for camera transformations
@@ -23,17 +22,13 @@ default_camera_lookat = {
    'target': (0, 0, 0),
    'up': (0, 1, 0)
 }
-# default_camera_lookat = {
-#     'origin': (0, 0, 0),
-#     'target': (-1, 0, -1),
-#     'up': (0, 1, 0)
-# }
+
 default_camera_scale = (1, 1, 1)
 
 # for red dot transformations
 default_red_dot_depth = -3.0
-default_world_range_x = [-2.0, 2.0] #TODO these are hardcoded for the given scene definition + depth, compute automatically
-default_world_range_y = [-2.0, 2.0] #TODO these are hardcoded for the given scene definition + depth, compute automatically
+default_world_range_x = [-2.0, 2.0]
+default_world_range_y = [-2.0, 2.0]
 
 default_red_dot_translate = (-0.6, -0.55, default_red_dot_depth)   # (-0.6, -0.55, -0.3)
 default_red_dot_scale = (.03, .03, .03)   # (.02, .02, .02)     # make the dot small to capture better centroid resolution under warping
@@ -74,20 +69,15 @@ class RedDotScene:
         'type': 'scene',
         'integrator': {
             'type': 'path',
-            'max_depth': 8 # TODO consider this should be 8 for knot, was 5 previously
+            'max_depth': 5 # Default, may be changed in post init depending on self.totem
         },
         'sensor': {
             'type': 'perspective',
             'fov_axis': 'smaller',
             'near_clip': 0.001,
             'far_clip': 100.0,
-            'focus_distance': 5,#1000
-            'fov': 32,#39.3077,
-            # 'to_world': mi.ScalarTransform4f.look_at(
-            #     origin=default_camera_lookat['origin'],
-            #     target=default_camera_lookat['target'],
-            #     up=default_camera_lookat['up']
-            # ) @ mi.ScalarTransform4f.scale(default_camera_scale),
+            'focus_distance': 5,
+            'fov': 32,
             'sampler': {
                 'type': 'independent',
                 'sample_count': 128
@@ -117,7 +107,6 @@ class RedDotScene:
         'red_dot': {
             'type': 'obj',
             'filename': 'meshes/sphere.obj',
-            # 'to_world': mi.ScalarTransform4f.translate(default_red_dot_translate).scale(default_red_dot_scale),
             'bsdf': {'type': 'ref', 'id': 'red'},
             'emitter': {
                 'type': 'area',
@@ -128,55 +117,66 @@ class RedDotScene:
 
     }
 
-    def __post_init__(self):
+    def _generate_totem_config(self):
+        """
+        Generate the configuration for the totem based on its type and transformations.
+
+        Returns:
+            dict: The configuration dictionary for the totem.
+        """
+
         if self.totem == 'sphere':
-            self.scene_template['totem'] = {
+            return {
                 'type': 'sphere',
                 'radius': 0.3,
                 'center': self.totem_center,
                 'bsdf': {'type': 'ref', 'id': 'glass'}
-        }
+            }
         elif self.totem == 'sqp':
-            self.scene_template['totem'] = {
+            return {
                 'type': 'obj',
-                # SQUARE PYRAMID
                 'filename': 'meshes/square_pyramid.obj',
-                'to_world': mi.ScalarTransform4f.translate((0.0, -0.15, 3.0)).scale((0.18, 0.18, 0.18)).rotate([1, 0, 0],
-                                                                                                               0),
+                'to_world': mi.ScalarTransform4f.translate((0.0, -0.15, 3.0)).scale((0.18, 0.18, 0.18)).rotate([1, 0, 0], 0),
                 'bsdf': {'type': 'ref', 'id': 'glass'}
             }
         elif self.totem == 'teapot':
-            self.scene_template['totem'] = {
+            return {
                 'type': 'ply',
                 'filename': 'meshes/teapot.ply',
-                'to_world': mi.ScalarTransform4f.translate((0.0, -0.12, 3.0)).scale((0.05, 0.05, 0.05)).rotate([1, 0, 0],90), # Teapot
+                'to_world': mi.ScalarTransform4f.translate((0.0, -0.12, 3.0)).scale((0.05, 0.05, 0.05)).rotate([1, 0, 0], 90),
                 'bsdf': {'type': 'ref', 'id': 'glass'}
             }
         elif self.totem == 'knot':
-            self.scene_template['totem'] = {
+            return {
                 'type': 'obj',
                 'filename': 'meshes/Knot.obj',
                 'to_world': mi.ScalarTransform4f.translate((0.0, -0.8, 0.0)).scale((0.05, 0.05, 0.05)).rotate([1, 0, 0], 0),
                 'bsdf': {'type': 'ref', 'id': 'glass'}
             }
         elif self.totem == 'heart':
-            self.scene_template['totem'] = {
+            return {
                 'type': 'obj',
                 'filename': 'meshes/love_heart.obj',
-                'to_world': mi.ScalarTransform4f.translate((-0.35, -0.15, 0.0)).scale((0.3, 0.3, 0.3)).rotate([1, 0, 0],
-                                                                                                              0),
+                'to_world': mi.ScalarTransform4f.translate((-0.35, -0.15, 0.0)).scale((0.3, 0.3, 0.3)).rotate([1, 0, 0], 0),
                 'bsdf': {'type': 'ref', 'id': 'glass'}
             }
 
+    def __post_init__(self):
+
+        self.scene_template['totem'] = self._generate_totem_config()
+
+        if self.totem == 'knot':
+            self.scene_template['integrator']['max_depth'] = 8
+
         self.logger = logging.getLogger(self.__class__.__name__)
         self.scene_definition = deepcopy_dict_and_lists(RedDotScene.scene_template)
-        # red_dot = self.scene_definition['red_dot']
-        # red_dot['to_world'] = mi.ScalarTransform4f.translate(self.red_dot_wc).scale(self.red_dot_scale)
+
         camera = self.scene_definition['sensor']
         camera['film']['width'] = self.resolution_x
         camera['film']['height'] = self.resolution_y
         if self.spp > 0:
             camera['sampler']['sample_count'] = self.spp
+
         self.__compute_totem_bbox()
         if self.is_render_only_totem:
             film = self.scene_definition['sensor']['film']
@@ -205,6 +205,21 @@ class RedDotScene:
               spp: int = None,
               red_dot_wc: tuple[float, float, float] = None,
               name: str = None) -> RedDotScene:
+        """
+           Create a new instance of `RedDotScene` by cloning the current instance,
+           with the option to override specific attributes.
+
+           Args:
+               resolution_x (int, optional): The horizontal resolution for the new instance. Defaults to the current instance's `resolution_x`.
+               resolution_y (int, optional): The vertical resolution for the new instance. Defaults to the current instance's `resolution_y`.
+               spp (int, optional): Samples per pixel for the new instance. Defaults to the current instance's `spp`.
+               red_dot_wc (tuple[float, float, float], optional): The world coordinates of the red dot for the new instance. Defaults to the current instance's `red_dot_wc`.
+               name (str, optional): The name of the new instance. Defaults to the current instance's `name`.
+
+           Returns:
+               RedDotScene: A new `RedDotScene` instance with the specified or inherited attributes.
+        """
+
         return RedDotScene(
             resolution_x=resolution_x or self.resolution_x,
             resolution_y=resolution_y or self.resolution_y,
@@ -216,10 +231,18 @@ class RedDotScene:
             totem=self.totem)
 
     def __compute_totem_bbox(self):
+        """
+            Compute and set the bounding box (bbox) of the totem in image coordinates (IC)
+            based on the totem type and resolution.
+
+            Notes:
+                - For 'sphere', the bounding box is computed dynamically using `world_to_image` to transform
+                  world coordinates into image coordinates.
+                - For other totems, bounding boxes are hardcoded for specific resolutions.
+        """
 
         if self.totem == 'sqp':
-            # HARDCODED FOR SQUARE PYRAMID SHAPE AT RES 256:
-            # self.totem_bbox_ic = ((75, 160),(160,250))
+            # CURRENTLY HARDCODED FOR SQUARE PYRAMID
             if self.resolution_x == 256:
                 self.totem_bbox_ic = ((75, 110),(175,205))
             else:
@@ -227,7 +250,7 @@ class RedDotScene:
                     f"NEED TO HARDCODE IN TOTEM BBOX FOR {self.totem} AT RES {self.resolution_x}!!!:)")
 
         elif self.totem == 'teapot':
-            # HARDCODED FOR TEAPOT
+            # CURRENTLY HARDCODED FOR TEAPOT
             if self.resolution_x == 256:
                 self.totem_bbox_ic = ((55, 180), (205, 250))
             elif self.resolution_x == 1024:
@@ -239,6 +262,7 @@ class RedDotScene:
                     f"NEED TO HARDCODE IN TOTEM BBOX FOR {self.totem} AT RES {self.resolution_x}!!!:)")
 
         elif self.totem == 'knot':
+            # CURRENTLY HARDCODED FOR TOROID KNOT
             if self.resolution_x == 256:
                 self.totem_bbox_ic = ((50, 177), (205, 253))
             elif self.resolution_x == 1024:
@@ -250,6 +274,7 @@ class RedDotScene:
                     f"NEED TO HARDCODE IN TOTEM BBOX FOR {self.totem} AT RES {self.resolution_x}!!!:)")
 
         elif self.totem == 'heart':
+            # CURRENTLY HARDCODED FOR HEART
             if self.resolution_x == 256:
                 self.totem_bbox_ic = ((40, 64), (137, 148))
             elif self.resolution_x == 1024:
@@ -263,7 +288,6 @@ class RedDotScene:
 
         elif self.totem == 'sphere':
             center_wc = np.array(self.scene_definition['totem']['center'])
-            center_ic = self.world_to_image(center_wc, flip_y_convention=True)
             radius_wc = self.scene_definition['totem']['radius']
             min_wc = np.array([center_wc[0] - radius_wc, center_wc[1] - radius_wc, center_wc[2]])
             max_wc = np.array([center_wc[0] + radius_wc, center_wc[1] + radius_wc, center_wc[2]])
@@ -276,7 +300,18 @@ class RedDotScene:
             self.totem_bbox_ic = ((xmin, ymin), (xmax, ymax))
 
     def world_to_image(self, world_coord, flip_y_convention=False) -> (int, int):
-        # todo: this might be replaceable by mi.ScalarTransform4f.look_at
+        """
+            Convert a 3D world coordinate to 2D image coordinates using perspective projection.
+
+            Args:
+                world_coord (numpy.ndarray): The (x, y, z) coordinate in world space.
+                flip_y_convention (bool): If True, flips the y-axis to match top-left origin systems. Defaults to False.
+
+            Returns:
+                tuple[int, int]: The (x, y) image coordinates corresponding to the world coordinate.
+        """
+
+        # Todo: this might be replaceable by mi.ScalarTransform4f.look_at
         camera = self.scene_definition['sensor']
         fov = camera['fov']
         near = camera['near_clip']
@@ -321,12 +356,14 @@ class RedDotScene:
         if flip_y_convention:
             # Account for y axis being flipped in Matplotlib coordinate system and use this coordinate convention
             y = self.resolution_y - y
-        #return x,y
-        return int(x + .05), int(y + .05)  # todo -- is it okay to quantize here?
+
+        return int(x + .05), int(y + .05)  # todo -- verify it is okay to quantize here
 
     def get_world_corners_of_a_rectangle(self, key='bg_img'):
         # TODO: TEST(WIP)
-        # Extract the 'to_world' transform and 'scale' from the scene definition
+        warnings.warn("get_world_corners_of_a_rectangle has not been fully tested!", UserWarning)
+
+        # Extract the 'to_world' transform from the scene definition
         to_world_transform = self.scene_definition[key]['to_world']
 
         # Define the rectangle's corners in object space (ranging from -1 to 1)
@@ -342,60 +379,22 @@ class RedDotScene:
         return rectangle_corners_world
 
     def put_totem_in(self):
-        if self.totem == 'sphere':
-            self.scene_definition['totem'] = {
-                'type': 'sphere',
-                'radius': 0.3,
-                'center': self.totem_center,#[0.0, -0.545, 1.0],
-                # 'radius': 0.2,
-                # 'center': [0.0, -0.79, 0.8],
-                'bsdf': {'type': 'ref', 'id': 'glass'}
-        }
-            # self.scene_definition['totem'] = {
-            # 'type': 'sphere',
-            # 'radius': 1.6781992623545596,
-            # 'center': [-8.686624053506775, -2.7969987705909323, -8.455511570224173],#, [0.0, -0.725, 0.0],
-            # # 'center': [0.0, -0.79, 0.8],
-            # 'bsdf': {'type': 'ref', 'id': 'glass'}
-            # },
-        elif self.totem == 'sqp':
-            self.scene_definition['totem'] = {
-                'type': 'obj',
-                # SQUARE PYRAMID
-                'filename': 'meshes/square_pyramid.obj',
-                'to_world': mi.ScalarTransform4f.translate((0.0, -0.15, 3.0)).scale((0.18, 0.18, 0.18)).rotate([1, 0, 0],
-                                                                                                               0),
-                'bsdf': {'type': 'ref', 'id': 'glass'}
-            }
-        elif self.totem == 'teapot':
-            self.scene_definition['totem'] = {
-                'type': 'ply',
-                'filename': 'meshes/teapot.ply',
-                'to_world': mi.ScalarTransform4f.translate((0.0, -0.12, 3.0)).scale((0.05, 0.05, 0.05)).rotate([1, 0, 0],90), # Teapot
-                'bsdf': {'type': 'ref', 'id': 'glass'}
-            }
-        elif self.totem == 'knot':
-            self.scene_definition['totem'] = {
-                'type': 'obj',
-                'filename': 'meshes/Knot.obj',
-                'to_world': mi.ScalarTransform4f.translate((0.0, -0.8, 0.0)).scale((0.05, 0.05, 0.05)).rotate([1, 0, 0],
-                                                                                                              0),
-                'bsdf': {'type': 'ref', 'id': 'glass'}
-        }
-        elif self.totem == 'heart':
-            self.scene_definition['totem'] = {
-                'type': 'obj',
-                'filename': 'meshes/love_heart.obj',
-                'to_world': mi.ScalarTransform4f.translate((-0.35, -0.15, 0.0)).scale((0.3, 0.3, 0.3)).rotate([1, 0, 0],
-                                                                                                              0),
-                'bsdf': {'type': 'ref', 'id': 'glass'}
-            }
+        """ Add the specified totem to the scene definition based on its type and transformation. """
+        self.scene_definition['totem'] = self._generate_totem_config()
 
-    def set_background_image(self, path_to_bg_image='/Users/sage/PycharmProjects/totem_new_shapes/data/image_to_unwarp/ducknana.png', landscape=True, depth=-3.0):
-        if landscape:
-            angle = 180
-        else:
-            angle = 180
+    def set_background_image(self, path_to_bg_image, depth=default_red_dot_depth):
+        """
+            Add a background image and a point light to the scene definition.
+
+            Args:
+                path_to_bg_image (str): Path to the background image file.
+                depth (float, optional): The depth position of the background image. Defaults to -3.0.
+
+            Returns:
+                None: Updates the `scene_definition` attribute in place.
+        """
+        angle = 180 # independent of landscape/portrait
+
         self.scene_definition['bg_img'] = {
                 'type': 'rectangle',
                 'to_world': mi.ScalarTransform4f.rotate([0, 0, 1], angle).translate([0, 0.065, depth]).scale([2.25, 2.25, 2.25]),
@@ -408,6 +407,7 @@ class RedDotScene:
                     }
                 }
             }
+
         self.scene_definition['light_1'] = {
         'type': 'point',
         'position': [0, 0, 0],
@@ -418,24 +418,52 @@ class RedDotScene:
     }
 
     def remove_totem_if_exists(self):
+        """ Remove the totem from the scene definition if it exists. """
+
         if 'totem' in self.scene_definition:
             del self.scene_definition['totem']
-    def modify_scene_for_postprocessing(self, bg_img=None, landscape=True, depth=-3.0):
+
+    def modify_scene_for_postprocessing(self, bg_img=None, landscape=True, depth=default_red_dot_depth):
+        """
+            Modify the scene for postprocessing by removing the red dot and optionally adding a background image.
+
+            Args:
+                bg_img (str, optional): Path to the background image file. If None, no background is added. Defaults to None.
+                landscape (bool, optional): Specifies whether the background image is in landscape orientation. Defaults to True.
+                depth (float, optional): The depth position for the background image. Defaults to `default_red_dot_depth`.
+        """
+
         if 'red_dot' in self.scene_definition:
             del self.scene_definition['red_dot']
         if bg_img is not None:
             self.set_background_image(bg_img, landscape=landscape, depth=depth)
 
-    def shift_uv_tots(self, uv_tot, xmin, ymin, xmax, ymax, resx, resy):
-        x, y = uv_tot
-        ymin_for_crop = ymin
-        xmin_for_crop = xmin
+    def shift_uv_tots(self, uv_tot, xmin, ymin):
+        """
+            Shift (u, v)_tot coordinates to the reference frame of the totem bounding box.
 
-        y_shifted = y - ymin_for_crop
-        x_shifted = x - xmin_for_crop
-        return [x_shifted, y_shifted]
+            Args:
+                uv_tot (list[int, int]): The original (u, v) coordinates.
+                xmin (int): The x-coordinate of the totem bounding box's origin.
+                ymin (int): The y-coordinate of the totem bounding box's origin.
+
+            Returns:
+                list[int, int]: The shifted (u, v) coordinates.
+        """
+        x, y = uv_tot
+        return [x - xmin, y - ymin]
 
     def in_bbox(self, x, y, buffer=0):
+        """
+            Check if a coordinate (x, y) is within the totem bounding box.
+            Args:
+                x (int): The x-coordinate to check.
+                y (int): The y-coordinate to check.
+                buffer (int, optional): An additional margin to expand the bounding box. Defaults to 0.
+
+            Returns:
+                bool: True if the coordinate is within the expanded bounding box, False otherwise.
+        """
         xmin, ymin = self.totem_bbox_ic[0]
         xmin -= buffer
         ymin -= buffer
@@ -445,7 +473,9 @@ class RedDotScene:
         return xmin <= x <= xmax and ymin <= y <= ymax
 
     def get_color_corr_or_space_covered(self, path_to_exp_folder, is_rev=True, custom_fname_suffix=None, vertical_gradient=False):
+        # TODO CLEAN AND DOCUMENT
         # TODO update implementaiton for is_rev = False, use old code/fit it back in with changes to get this working
+
         bbox = self.totem_bbox_ic
         compiled_scene = mi.load_dict(self.scene_definition)
         self.logger.info(f'Rendering the basic scene for color correlation: {self.name}')
@@ -552,8 +582,7 @@ class RedDotScene:
             uv_tot_og = uv_tot
             # Convert the coordinates from strings to tuples
             uv_tot = [int(num) for num in uv_tot.strip('()').split(',')]  # x,y
-            uv_tot_in_bbox_frame = self.shift_uv_tots(uv_tot, x1, y1, x2, y2, self.resolution_x,
-                                                      self.resolution_y)
+            uv_tot_in_bbox_frame = self.shift_uv_tots(uv_tot, x1, y2)
             uv_cam = [int(num) for num in uv_cam.strip('()').split(',')]  # x,y
 
             # if self.in_bbox(uv_cam[0], uv_cam[1], buffer=35):

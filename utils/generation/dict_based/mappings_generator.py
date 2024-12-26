@@ -2,7 +2,6 @@ import logging
 import math
 import traceback
 
-import numpy as np
 import psutil as psutil
 import os
 import json
@@ -18,11 +17,9 @@ from utils.generation.dict_based.scene import RedDotScene
 from utils.generation.dict_based.scene_sweeper import RedDotSceneSweeper
 
 
-#
 # for memory leak
 # wr = weakref.ref(x)
 # gc.get_referents(wr)
-#
 
 
 @dataclass
@@ -197,13 +194,10 @@ class MappingsGenerator:
         fail_count = 0  # todo: save/load from file to continue counts
         start = time.time()
         n_scenes = scene_sweeper.n_scenes()
-        tot_x_err = 0
-        tot_y_err = 0
+
         for i, scene in enumerate(scene_sweeper.scenes(from_iter), start=from_iter):
             result = self.process_red_dot_scene(i, self.output_data_path, scene)
             _mappings, _reverse_mappings, _iter_time, _is_error, _failures = result #, x_err, y_err = result
-            #tot_x_err += x_err
-            #tot_y_err += y_err
             mappings |= _mappings
             failures |= _failures
             reverse_mappings |= _reverse_mappings
@@ -229,7 +223,6 @@ class MappingsGenerator:
         is_error = False
         logging.info(f'Trying iter {i}, scene: {scene.name}')
         start_time = time.time()
-        # errx, erry = 0, 0
         try:
             scene.set_transforms()
             refraction_mapper = RedDotSceneTotemRefractionMapper(base_output_path, scene)
@@ -245,4 +238,4 @@ class MappingsGenerator:
             failures[str(refraction_mapper.uv_cam)] = 'Failed'
         iter_time = time.time() - start_time
 
-        return mappings, reverse_mappings, iter_time, is_error, failures  # errx, erry
+        return mappings, reverse_mappings, iter_time, is_error, failures
